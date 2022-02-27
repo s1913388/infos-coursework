@@ -28,7 +28,6 @@ public:
      */
     void init()
     {
-        // TODO: Implement me!
     }
 
     /**
@@ -69,7 +68,7 @@ public:
                 return entity;
             }
         }
-        // Empty runqueue
+        // Empty multilevel runqueue
         return nullptr;
     }
 
@@ -81,6 +80,7 @@ private:
     static constexpr unsigned int num_levels = 4;
     runqueue_t multilevel_runqueue[num_levels];
 
+    // Obtain the corresponding runqueue of the given entity
     runqueue_t *get_runqueue(entity_t &entity)
     {
         switch (entity.priority())
