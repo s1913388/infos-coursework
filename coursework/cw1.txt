@@ -40,29 +40,30 @@ Hence, the sequence of first-considered runqueue index is 010201030102010.
 +--------+
 
 Let's demonstrate the modified algorithm.
-Suppose there is a on-going task of priority of level 0, 2 and 3 without level 1 tasks.
+Suppose there is a on-going tasks of priority of level 0, 2 and 3 without level 1 tasks.
 Looping index from 0 with wrap around, i.e. a cycle
+--------------------
 010201030102010
 ^
 index point to 0 and level 0 is non-empty, pick from level 0
-
+--------------------
 010201030102010
  ^
 index point to 1 and level 1 is empty, pick as ordinary multiple queue priority algorithm,
 i.e. level 0 task is picked as it is non-empty highest priority runqueue.
-
+--------------------
 010201030102010
   ^
 index point to 0 and level 0 is non-empty, pick from level 0
-
+--------------------
 010201030102010
    ^
 index point to 2 and level 2 is non-empty, pick from level 2
-
+--------------------
 010201030102010
     ^
 index point to 0 and level 0 is non-empty, pick from level 0
-
+--------------------
 010201030102010
      ^
 index point to 1 and level 1 is empty, pick as ordinary multiple queue priority algorithm,
@@ -74,7 +75,7 @@ i.e. level 0 task is picked as it is non-empty highest priority runqueue.
 
 A little analysis on both heavily loaded situation and lightly loaded situation will both come up with conclusion:
 1. starvation will not occur as every priority level get a chance to run
-2. higher priority level will have more chance to run then the lower priority level
+2. higher priority level will have more chance (at least double chance) to run then the lower priority level
 3. it is deterministic, unlike lottery scheduling which is probabilistic scheduling algorithm
 
 +-------------+
