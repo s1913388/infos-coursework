@@ -1,0 +1,90 @@
+Note: please use a monospaced font for better reading!
+
+############
+# Problem  #
+############
+
+A common problem with the multiple queue priority algorithm is indefinite blocking, or starvation.
+A process in ready queue waiting for the CPU is considered blocked and the multiple queue priority algorithm can leave some low-priority processes waiting indefinitely.
+In a heavily loaded operating system, a continuing queue of higher-priority tasks can stop the lower-priority tasks from ever being executed.
+
+In case of "prio-sched-test", the "fibonacci_thread_proc" (DAEMON) will never be scheduled if "terminate_ticker_thread_proc" (INTERACTIVE) is never terminated.
+It is unfair and undesirable as we want every task has at least a chance to run.
+
+A potential solution to the problem of starvation is aging which involves gradually increasing the priority of processes that wait in the system for a long time.
+Another technique is to time-slice among different priorities that each priority level is given a fraction of the CPU time and tasks with same priority share that fraction of CPU time.
+
+----------------------------------------
+########################
+#  Potential Solution  #
+########################
+
+Here, I will present my solution, a modification on multiple queue priority algorithm.
+
+We construct a sequence of first-considered runqueue index, which the algorithm will pick entities from it if the corresponding runqueue is not empty.
+Otherwise, the algorithm works as usual to pick from higest priority runqueue to lowest priority runqueue.
+Meanwhile, given a portion of CPU time to the lowest priority runqueue, we want each higher level runqueue granted at least double the CPU time then lower level runqueue.
+
+Hence, in my case, 3 (lowest priority) appears once in the following sequence, 2 appears twice, 1 appears 4 times and 0 (higest priority) appears 8 times.
+322111100000000
+However, we want the occurrence of numbers distributed more uniformly.
+A constructive method is provided in follows:
+Start from lowest priority level (3):                          3
+Interleave the gaps with one level higher priority (2):    2   3   2
+Interleave the gaps with one level higher priority (1):  1 2 1 3 1 2 1
+Interleave the gaps with one level higher priority (0): 010201030102010
+Hence, the sequence of first-considered runqueue index is 010201030102010.
+
++--------+
+|  Demo  |
++--------+
+
+Let's demonstrate the modified algorithm.
+Suppose there is a on-going task of priority of level 0, 2 and 3 without level 1 tasks.
+Looping index from 0 with wrap around, i.e. a cycle
+010201030102010
+^
+index point to 0 and level 0 is non-empty, pick from level 0
+
+010201030102010
+ ^
+index point to 1 and level 1 is empty, pick as ordinary multiple queue priority algorithm,
+i.e. level 0 task is picked as it is non-empty highest priority runqueue.
+
+010201030102010
+  ^
+index point to 0 and level 0 is non-empty, pick from level 0
+
+010201030102010
+   ^
+index point to 2 and level 2 is non-empty, pick from level 2
+
+010201030102010
+    ^
+index point to 0 and level 0 is non-empty, pick from level 0
+
+010201030102010
+     ^
+index point to 1 and level 1 is empty, pick as ordinary multiple queue priority algorithm,
+i.e. level 0 task is picked as it is non-empty highest priority runqueue.
+
++------------+
+|  Analysis  |
++------------+
+
+A little analysis on both heavily loaded situation and lightly loaded situation will both come up with conclusion:
+1. starvation will not occur as every priority level get a chance to run
+2. higher priority level will have more chance to run then the lower priority level
+3. it is deterministic, unlike lottery scheduling which is probabilistic scheduling algorithm
+
++-------------+
+|  Drawbacks  |
++-------------+
+
+The modified algorithm requires extra memory on storing the sequence of first-considered runqueue index 010201030102010 and loop variable index.
+Although we can use space time tradeoff to compute the first-considered runqueue index from loop variable index directly, it may add extra overhead.
+
+if index % 2 == 1 pick from runqueue 0
+else if (index / 2) % 2 == 1 pick from runqueue 1
+else if (index / 4) % 2 == 1 pick from runqueue 2
+else pick from runqueue 3
