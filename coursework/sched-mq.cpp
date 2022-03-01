@@ -80,7 +80,10 @@ private:
     static constexpr unsigned int num_levels = 4;
     runqueue_t multilevel_runqueue[num_levels];
 
-    // Obtain the corresponding runqueue of the given entity
+    /** Obtain the corresponding runqueue of the given entity.
+     * @param entity the scheduling entity
+     * @return Returns the corresponding runqueue of the scheduling entity
+     */
     runqueue_t *get_runqueue(entity_t &entity)
     {
         switch (entity.priority())
@@ -94,8 +97,10 @@ private:
         case SchedulingEntityPriority::DAEMON:
             return &multilevel_runqueue[3];
         default:
+            // info-usr/inc/infos.h SchedulingEntityPriority has IDLE which is not defined in kernel
+            // need to handle unexpected priority, just put it in lowest priority level
             syslog.messagef(LogLevel::FATAL, "Unknown prioity for entity %s.", entity.name().c_str());
-            arch_abort();
+            return &multilevel_runqueue[3];
         }
     }
 };

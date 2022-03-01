@@ -14,7 +14,7 @@ using namespace infos::kernel;
 using namespace infos::util;
 
 /**
- * A Multiple Queue priority scheduling algorithm
+ * An advance scheduling algorithm
  */
 class AdvancedScheduler : public SchedulingAlgorithm
 {
@@ -99,7 +99,10 @@ private:
     static constexpr unsigned int order[num_order] = {0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0};
     int index = 0; // initialise
 
-    // Obtain the corresponding runqueue of the given entity
+    /** Obtain the corresponding runqueue of the given entity.
+     * @param entity the scheduling entity
+     * @return Returns the corresponding runqueue of the scheduling entity
+     */
     runqueue_t *get_runqueue(entity_t &entity)
     {
         switch (entity.priority())
@@ -113,8 +116,10 @@ private:
         case SchedulingEntityPriority::DAEMON:
             return &multilevel_runqueue[3];
         default:
+            // info-usr/inc/infos.h SchedulingEntityPriority has IDLE which is not defined in kernel
+            // need to handle unexpected priority, just put it in lowest priority level
             syslog.messagef(LogLevel::FATAL, "Unknown prioity for entity %s.", entity.name().c_str());
-            arch_abort();
+            return &multilevel_runqueue[3];
         }
     }
 };
