@@ -30,7 +30,9 @@ private:
 	 */
 	PageDescriptor *buddy_of(PageDescriptor *pgd, int order)
 	{
-		// TODO: Implement me!
+		uint64_t pgd_index = pgd - _page_descriptors;
+		uint64_t buddy_index = pgd_index ^ (1ULL << order);
+		return _page_descriptors + buddy_index;
 	}
 
 	/**
@@ -43,7 +45,25 @@ private:
 	 */
 	PageDescriptor *split_block(PageDescriptor **block_pointer, int source_order)
 	{
-		// TODO: Implement me!
+		PageDescriptor **current;
+
+		current = &_free_areas[source_order];
+		while (*current && *current != *block_pointer)
+		{
+			*current = (*current)->next_free;
+		}
+		*current = (*block_pointer)->next_free;
+
+		(*block_pointer)->next_free = buddy_of(*block_pointer, source_order - 1);
+		current = &_free_areas[source_order - 1];
+		while (*current && *current < *block_pointer)
+		{
+			*current = (*current)->next_free;
+		}
+		(*block_pointer)->next_free->next_free = *current;
+		*current = *block_pointer;
+
+		return *block_pointer;
 	}
 
 	/**
@@ -54,7 +74,24 @@ private:
 	 */
 	PageDescriptor **merge_block(PageDescriptor **block_pointer, int source_order)
 	{
-		// TODO: Implement me!
+		PageDescriptor **current;
+
+		current = &_free_areas[source_order];
+		while (*current && *current != *block_pointer)
+		{
+			++(*current);
+		}
+		*current = (*current)->next_free->next_free;
+
+		current = &_free_areas[source_order + 1];
+		while (*current && *current < *block_pointer)
+		{
+			*current = (*current)->next_free;
+		}
+		(*block_pointer)->next_free = *current;
+		*current = *block_pointer;
+
+		return block_pointer;
 	}
 
 public:
@@ -66,7 +103,22 @@ public:
 	 */
 	PageDescriptor *allocate_pages(int order) override
 	{
-		// TODO: Implement me!
+		assert((0 <= order) && (order <= MAX_ORDER));
+		for (int source_order = order; source_order <= MAX_ORDER; ++source_order)
+		{
+			if (_free_areas[source_order] != nullptr)
+			{
+				while (source_order != order)
+				{
+					split_block(&_free_areas[source_order], source_order);
+					--source_order;
+				}
+				PageDescriptor * page = _free_areas[order];
+				_free_areas[order] = _free_areas[order]->next_free;
+				return page;
+			}
+		}
+		return nullptr;
 	}
 
 	/**
@@ -77,6 +129,8 @@ public:
 	void free_pages(PageDescriptor *pgd, int order) override
 	{
 		// TODO: Implement me!
+		assert(!((pgd - _page_descriptors) & ((1ULL << order) - 1)));
+
 	}
 
 	/**
@@ -105,8 +159,9 @@ public:
 	 */
 	bool init(PageDescriptor *page_descriptors, uint64_t nr_page_descriptors) override
 	{
-		// TODO: Implement me!
-		start = page_descriptors;
+		this->_page_descriptors = page_descriptors;
+		this->_nr_page_descriptors = nr_page_descriptors;
+		return true;
 	}
 
 	/**
@@ -143,8 +198,8 @@ public:
 
 private:
 	PageDescriptor *_free_areas[MAX_ORDER + 1];
-	size_t size = sizeof(PageDescriptor *);
-	PageDescriptor *start;
+	PageDescriptor *_page_descriptors;
+	uint64_t _nr_page_descriptors;
 };
 
 /* --- DO NOT CHANGE ANYTHING BELOW THIS LINE --- */
