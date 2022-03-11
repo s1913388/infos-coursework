@@ -17,7 +17,6 @@ using namespace infos::util;
 #define MAX_ORDER 18
 constexpr uint64_t MAX_ORDER_NUM = 1ULL << MAX_ORDER;
 
-#define MAX(x, y) (((x) > (y)) ? (x) : (y))
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
 
 /**
@@ -69,18 +68,6 @@ private:
 			x &= x - 1; // turning off the rightmost 1-bit of x
 		} while (x);
 		return y;
-	}
-
-	/**
-	 * Round up to a multiple of given power of 2 for the unsigned integer.
-	 *
-	 * @param x the unsigned integer
-	 * @param power2 power of 2
-	 * @return Returns the multiple of given power of 2
-	 */
-	uint64_t rup2(uint64_t x, uint64_t power2)
-	{
-		return x + (-x & (power2 - 1));
 	}
 
 	/**
@@ -197,14 +184,22 @@ public:
 		int order = log2(order_num);
 
 		uint64_t index = start - _page_descriptors;
-		uint64_t offset = index + (-index & (order_num - 1));
+		uint64_t offset = -index & (order_num - 1); // how much to add to make it a multiple of 2^order
 
-		// [index, offset)
-		insert_page_range(_page_descriptors + index, offset - index);
-		// [offset, offset + order_num)
-		free_pages(_page_descriptors + offset, order);
-		// [offset + order_num, index + count)
-		insert_page_range(_page_descriptors + offset + order_num, index + count - offset - order_num);
+		/*
+			[index, index + count)
+			is split into
+			[index, index + offset)
+			+ [index + offset, index + offset + order_num) // <- this has 2^order pages and aligned to 2^order
+			+ [index + offset + order_num, index + count)
+		*/
+
+		// [index, index + offset)
+		insert_page_range(_page_descriptors + index, offset);
+		// [index + offset, index + offset + order_num)
+		insert(&_free_areas[order], _page_descriptors + index + offset);
+		// [index + offset + order_num, index + count)
+		insert_page_range(_page_descriptors + index + offset + order_num, count - offset - order_num);
 	}
 
 	/**
