@@ -26,7 +26,8 @@ constexpr uint64_t MAX_ORDER_NUM = 1ULL << MAX_ORDER;
 class BuddyPageAllocator : public PageAllocatorAlgorithm
 {
 private:
-	/** Given a page descriptor, and an order, returns the buddy PGD.  The buddy could either be
+	/**
+	 * Given a page descriptor, and an order, returns the buddy PGD.  The buddy could either be
 	 * to the left or the right of PGD, in the given order.
 	 * @param pgd The page descriptor to find the buddy for.
 	 * @param order The order in which the page descriptor lives.
@@ -39,96 +40,83 @@ private:
 		return _page_descriptors + buddy_index;
 	}
 
-	// /**
-	//  * Given a pointer to a block of free memory in the order "source_order", this function will
-	//  * split the block in half, and insert it into the order below.
-	//  * @param block_pointer A pointer to a pointer containing the beginning of a block of free memory.
-	//  * @param source_order The order in which the block of free memory exists.  Naturally,
-	//  * the split will insert the two new blocks into the order below.
-	//  * @return Returns the left-hand-side of the new block.
-	//  */
-	// PageDescriptor *split_block(PageDescriptor **block_pointer, int source_order)
-	// {
-	// 	// TODO: Implement me!
-	// 	PageDescriptor *block = *block_pointer;
-	// 	*block_pointer = (*block_pointer)->next_free;
-	//
-	// 	PageDescriptor *block_buddy = buddy_of(block, source_order - 1);
-	// 	block_buddy->next_free = _free_areas[source_order - 1];
-	// 	block->next_free = block_buddy;
-	// 	_free_areas[source_order - 1] = block;
-	//
-	// 	return block;
-	// }
-
-	// /**
-	//  * Takes a block in the given source order, and merges it (and its buddy) into the next order.
-	//  * @param block_pointer A pointer to a pointer containing a block in the pair to merge.
-	//  * @param source_order The order in which the pair of blocks live.
-	//  * @return Returns the new slot that points to the merged block.
-	//  */
-	// PageDescriptor **merge_block(PageDescriptor **block_pointer, int source_order)
-	// {
-	// 	// TODO: Implement me!
-	// 	PageDescriptor *block = *block_pointer;
-	// 	*block_pointer = (*block_pointer)->next_free;
-	//
-	// 	PageDescriptor *block_buddy = buddy_of(block, source_order);
-	// 	PageDescriptor **current = &_free_areas[source_order];
-	// 	while (*current && *current != block)
-	// 	{
-	// 		*current = (*current)->next_free;
-	// 	}
-	//
-	// 	block->next_free = _free_areas[source_order - 1];
-	// 	_free_areas[source_order - 1] = block;
-	//
-	// 	return &_free_areas[source_order + 1];
-	// }
-
-	uint8_t log2(uint64_t v)
+	/**
+	 * Compute the base 2 log of given unsigned integer.
+	 * @param x the unsigned integer
+	 * @return Returns the log2 result.
+	 */
+	uint8_t log2(uint64_t x)
 	{
-		unsigned int r = 0;
-		while (v >>= 1)
+		unsigned int y = 0;
+		while (x >>= 1)
 		{
-			++r;
+			++y;
 		}
-		return r;
+		return y;
 	}
 
+	/**
+	 * Floor to nearest power of 2 of the given unsigned integer.
+	 * @param x the unsigned integer
+	 * @return Returns the nearest power of 2
+	 */
 	uint64_t flp2(uint64_t x)
 	{
-		x |= x >> 1;
-		x |= x >> 2;
-		x |= x >> 4;
-		x |= x >> 8;
-		x |= x >> 16;
-		x |= x >> 32;
-		return x - (x >> 1);
+		uint64_t y;
+		do
+		{
+			y = x;
+			x &= x - 1; // turning off the rightmost 1-bit of x
+		} while (x);
+		return y;
 	}
 
+	/**
+	 * Round up to a multiple of given power of 2 for the unsigned integer.
+	 *
+	 * @param x the unsigned integer
+	 * @param power2 power of 2
+	 * @return Returns the multiple of given power of 2
+	 */
+	uint64_t rup2(uint64_t x, uint64_t power2)
+	{
+		return x + (-x & (power2 - 1));
+	}
+
+	/**
+	 * Insert a node into sorted linked list in ascending order.
+	 * @param head head of linked list
+	 * @param node node to be inserted
+	 */
 	void insert(PageDescriptor **head, PageDescriptor *node)
 	{
-		PageDescriptor **current;
-		for (current = head; *current; current = &(*current)->next_free)
+		PageDescriptor **curr;
+		for (curr = head; *curr; curr = &(*curr)->next_free)
 		{
-			if (*current >= node)
+			if (*curr >= node)
 			{
 				break;
 			}
 		}
-		node->next_free = *current;
-		*current = node;
+		node->next_free = *curr;
+		*curr = node;
 	}
 
+	/**
+	 * Remove a node from linked list.
+	 * @param head head of linked list
+	 * @param node node to be removed
+	 * @return true if node is found in linked list
+	 * @return false if node is not found in linked list
+	 */
 	bool remove(PageDescriptor **head, PageDescriptor *node)
-	{		
-		PageDescriptor **current;
-		for (current = head; *current; current = &(*current)->next_free)
+	{
+		PageDescriptor **curr;
+		for (curr = head; *curr; curr = &(*curr)->next_free)
 		{
-			if (*current == node)
+			if (*curr == node)
 			{
-				*current = (*current)->next_free;
+				*curr = (*curr)->next_free;
 				return true;
 			}
 		}
@@ -147,12 +135,13 @@ public:
 		// find from order to MAX_ORDER
 		for (int source_order = order; source_order <= MAX_ORDER; ++source_order)
 		{
+			// check non-empty, i.e. not nullptr
 			if (_free_areas[source_order])
 			{
 				PageDescriptor *pages = _free_areas[source_order];
 				// remove pages
 				_free_areas[source_order] = pages->next_free;
-				// split pages
+				// split pages until required order
 				while (source_order-- != order)
 				{
 					// insert buddy pages
@@ -172,7 +161,7 @@ public:
 	 */
 	void free_pages(PageDescriptor *pgd, int order) override
 	{
-		// merge pages with buddy
+		// merge pages with its buddy
 		while (order < MAX_ORDER)
 		{
 			PageDescriptor *buddy = buddy_of(pgd, order);
@@ -183,10 +172,10 @@ public:
 			}
 			// merge into higher order
 			++order;
-			// update leftmost pages
+			// update leftmost pages after merged
 			pgd = MIN(pgd, buddy);
 		}
-
+		// no further merge possible, so just insert pages
 		insert(&_free_areas[order], pgd);
 	}
 
@@ -203,18 +192,19 @@ public:
 			return;
 		}
 
+		// maximum order that the consecutive pages contains
 		uint64_t order_num = MIN(MAX_ORDER_NUM, flp2(count));
 		int order = log2(order_num);
 
 		uint64_t index = start - _page_descriptors;
 		uint64_t offset = index + (-index & (order_num - 1));
-		
-		// [offset + order_num, index + count)
-		insert_page_range(_page_descriptors + offset + order_num, index + count - offset - order_num);
-		// [offset, offset + order_num)
-		free_pages(_page_descriptors + offset, order);
+
 		// [index, offset)
 		insert_page_range(_page_descriptors + index, offset - index);
+		// [offset, offset + order_num)
+		free_pages(_page_descriptors + offset, order);
+		// [offset + order_num, index + count)
+		insert_page_range(_page_descriptors + offset + order_num, index + count - offset - order_num);
 	}
 
 	/**
@@ -250,10 +240,10 @@ public:
 					// insert [start_end, block_end)
 					if (start_end < block_end)
 					{
-						insert_page_range(start + count, block_end - start_end);
+						insert_page_range(start_end, block_end - start_end);
 					}
 				}
-				// move to next
+				// otherwise move to next
 				else
 				{
 					current = &block->next_free;
@@ -268,7 +258,6 @@ public:
 	 */
 	bool init(PageDescriptor *page_descriptors, uint64_t nr_page_descriptors) override
 	{
-		// TODO: Implement me!
 		this->_page_descriptors = page_descriptors;
 		this->_nr_page_descriptors = nr_page_descriptors;
 		return true;
