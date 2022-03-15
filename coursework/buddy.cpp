@@ -34,9 +34,9 @@ private:
 	 */
 	PageDescriptor *buddy_of(PageDescriptor *pgd, int order)
 	{
-		uint64_t self_index = pgd - _page_descriptors;
-		uint64_t buddy_index = self_index ^ (1ULL << order);
-		return _page_descriptors + buddy_index;
+		const uint64_t self_index = pgd - _pgd_base;
+		const uint64_t buddy_index = self_index ^ (1ULL << order);
+		return _pgd_base + buddy_index;
 	}
 
 	/**
@@ -46,7 +46,7 @@ private:
 	 */
 	uint8_t log2(uint64_t x)
 	{
-		unsigned int y = 0;
+		uint8_t y = 0;
 		while (x >>= 1)
 		{
 			++y;
@@ -178,28 +178,27 @@ public:
 		{
 			return;
 		}
+		// maximum order that the consecutive pages contains, do not use info::util::ilog2_floor as it uses uint32_t instead
+		const uint64_t order_num = MIN(MAX_ORDER_NUM, flp2(count));
+		const int order = log2(order_num);
+		// start index
+		const uint64_t index = start - _pgd_base;
+		// how much to add to make it a multiple of 2^order
+		const uint64_t offset = -index & (order_num - 1);
+		// [start, start_end)
+		const PageDescriptor *start_end = start + count;
 
-		// maximum order that the consecutive pages contains
-		uint64_t order_num = MIN(MAX_ORDER_NUM, flp2(count));
-		int order = log2(order_num);
+		insert_page_range(start, offset);
+		start += offset;
 
-		uint64_t index = start - _page_descriptors;
-		uint64_t offset = -index & (order_num - 1); // how much to add to make it a multiple of 2^order
+		// remove potential blocks with 2^order
+		while (order_num <= (unsigned long long)(start_end - start))
+		{
+			insert(&_free_areas[order], start);
+			start += order_num;
+		}
 
-		/*
-			[index, index + count)
-			is split into
-			[index, index + offset)
-			+ [index + offset, index + offset + order_num) // <- this has 2^order pages and aligned to 2^order
-			+ [index + offset + order_num, index + count)
-		*/
-
-		// [index, index + offset)
-		insert_page_range(_page_descriptors + index, offset);
-		// [index + offset, index + offset + order_num)
-		insert(&_free_areas[order], _page_descriptors + index + offset);
-		// [index + offset + order_num, index + count)
-		insert_page_range(_page_descriptors + index + offset + order_num, count - offset - order_num);
+		insert_page_range(start, start_end - start);
 	}
 
 	/**
@@ -216,8 +215,10 @@ public:
 		}
 		// [start, start_end)
 		PageDescriptor *start_end = start + count;
+		// interate each order of _free_areas
 		for (int order = 0; order <= MAX_ORDER; ++order)
 		{
+			// iterate linked list of blocks of the order
 			for (PageDescriptor **current = &_free_areas[order]; *current;)
 			{
 				// [block, block_end)
@@ -253,8 +254,8 @@ public:
 	 */
 	bool init(PageDescriptor *page_descriptors, uint64_t nr_page_descriptors) override
 	{
-		this->_page_descriptors = page_descriptors;
-		this->_nr_page_descriptors = nr_page_descriptors;
+		_pgd_base = page_descriptors;
+		_nr_pgds = nr_page_descriptors;
 		return true;
 	}
 
@@ -292,8 +293,8 @@ public:
 
 private:
 	PageDescriptor *_free_areas[MAX_ORDER + 1];
-	PageDescriptor *_page_descriptors;
-	uint64_t _nr_page_descriptors;
+	PageDescriptor *_pgd_base;
+	uint64_t _nr_pgds;
 };
 
 /* --- DO NOT CHANGE ANYTHING BELOW THIS LINE --- */
